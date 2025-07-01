@@ -12,31 +12,47 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
       window.__injected = true;
 
       /**
+       * Send message to content_script
+      */
+      function sendToContentScript( {type = 'SERVICE_WORKER', data} ) {
+        window.postMessage( {type, data}, '*');
+      };
+
+
+      /**
        * Patching of native window.fetch function
-       */
-      function captureFetchRequest(fetch) {
-        const originalFetch = fetch;
-        fetch = function () {
-          originalFetch.apply(this, arguments).then(response => {
-            response.clone().json()
-            .then(parsed => {
-                console.log('Intercepted fetch (JSON) => ', parsed);
-                resolve(response);
-              })
-              .catch(err => {
-                console.warn("Non-JSON response, returning original:", response);
-                resolve(response);
-              });
+      */
+      function captureFetchRequest(originalFetch) {
+        window.fetch = function(...args) {
+          return originalFetch.apply(this, args)
+            .then(response => {
+              const responseClone = response.clone();
+              const data = { request: args[0] || {}, response: {} };
+
+              // Send JSON if possible
+              return responseClone.json()
+                .then(parsed => {
+                  data.response = {...parsed, is_json: true};
+                  sendToContentScript( {data} );
+                  return response;
+                })
+                .catch(() => {
+                  return responseClone.text()
+                    .then(text => {
+                      data.response = text;
+                      sendToContentScript( {data} );
+                      return response;
+                    });
+                });
             })
-            .catch(error => {
-              reject(error);
-            });
+            .catch(error => { throw error; });
         }
       }
 
+
        /**
        * Patching of native XMLHttpRequest function
-       */
+      */
       function captureXMLHttpRequest(xhr) {
         const XHR = xhr.prototype;
         const open = XHR.open;
@@ -98,7 +114,13 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                 responseModel.body = this.responseText;
               }
             }
-            console.log("Intercepted XHL => ", {request: requestModel || {}, response: responseModel || {}} );
+            const data = {
+              request: requestModel || {},
+              response: responseModel || {}
+            };
+
+            // console.log("Intercepted XHL => ", {request: requestModel || {}, response: responseModel || {}} );
+            sendToContentScript( {data} );
           })
           return send.apply(this, arguments);
         };

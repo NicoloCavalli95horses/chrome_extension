@@ -18,7 +18,7 @@
     {
       "matches": ["<all_urls>"],
       "css": ["style.css"],
-      "js": ["scripts/content_script.js"]
+      "js": ["scripts/utils.js", "scripts/content_script.js"]
     }
   ]
 }
