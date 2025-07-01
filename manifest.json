@@ -1,0 +1,24 @@
+{
+  "name": "HTTP responses classifier",
+  "description": "Identify likely sensitive HTTP responses in eligible web applications",
+  "version": "1.0",
+  "manifest_version": 3,
+  "icons": {
+    "16": "assets/icon.png",
+    "48": "assets/icon.png",
+    "128": "assets/icon.png"
+  },
+  "permissions": ["tabs", "sidePanel", "webRequest", "scripting"],
+  "background": {
+    "service_worker": "scripts/service_worker.js",
+    "type": "module"
+  },
+  "host_permissions": ["<all_urls>"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "css": ["style.css"],
+      "js": ["scripts/content_script.js"]
+    }
+  ]
+}
