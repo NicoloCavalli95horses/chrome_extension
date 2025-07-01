@@ -1,8 +1,14 @@
+//==============================
+// Main
+//==============================
 window.DOMManipulationCheck();
 
 window.addEventListener('message', (event) => {
   if (event.source === window && event.data.type === 'SERVICE_WORKER') {
-    // TO DO: analyze {request, response}
+    if (event.data.data.response._SENSITIVE) {
+      // Looking for sensitive object keys in HTTP responses
+      console.log('Likely sensitive =>', event.data.data.response);
+    }
   }
 });
 

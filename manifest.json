@@ -8,17 +8,31 @@
     "48": "assets/icon.png",
     "128": "assets/icon.png"
   },
-  "permissions": ["tabs", "sidePanel", "webRequest", "scripting"],
+  "permissions": [
+    "tabs",
+    "sidePanel",
+    "webRequest",
+    "scripting"
+  ],
   "background": {
     "service_worker": "scripts/service_worker.js",
     "type": "module"
   },
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "css": ["style.css"],
-      "js": ["scripts/utils.js", "scripts/content_script.js"]
+      "matches": [
+        "<all_urls>"
+      ],
+      "css": [
+        "style.css"
+      ],
+      "js": [
+        "scripts/utils.js",
+        "scripts/content_script.js"
+      ]
     }
   ]
 }
