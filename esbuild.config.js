@@ -72,7 +72,7 @@ async function build() {
       entryPoints: [entry.in],
       bundle: true,
       outfile: entry.out,
-      minify: true,
+      minify: false, // name collisions in target websites (!)
       sourcemap: false,
       target: ['chrome112'],
       format: 'esm',

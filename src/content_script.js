@@ -10,10 +10,10 @@ import { DOMManipulationCheck } from './scripts/utils.js';
 DOMManipulationCheck();
 
 window.addEventListener('message', (event) => {
-  if (event.source === window && event.data.type === 'SERVICE_WORKER') {
-    if (event.data.data.response._SENSITIVE) {
-      // Looking for sensitive object keys in HTTP responses
-      console.log('Likely sensitive =>', event.data.data.response);
+  if (event.source === window && ['FETCH_EVENT', 'XML_EVENT'].includes(event.data.type)) {
+    if (event.data.data?.response?._priv?.sensitive?.is_sensitive) {
+      // log only likely sensitive HTTP responses
+      console.log(event.data.data)
     }
   }
 });

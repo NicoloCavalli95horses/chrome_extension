@@ -1,15 +1,19 @@
 //==============================
 // Main
 //==============================
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status !== 'complete' || !(/^https?:/.test(tab.url))) {
-    // prevent access to chrome:// or file:/
-    return;
+chrome.webNavigation.onCompleted.addListener( async (details) => {
+  try {
+    const [tab] = await chrome.tabs.query( {active: true, currentWindow: true} );
+    if (!tab || !tab.url || !/^https?:/.test(tab.url)) {
+      return;
+    }
+
+    await chrome.scripting.executeScript({
+      target: { tabId: details.tabId },
+      files: ['http_main.js'],
+      world: 'MAIN'
+    });
+  } catch (err) {
+    return err;
   }
-  // Execute http_main.js in the target website (bundled by esbuild)
-  chrome.scripting.executeScript({
-    target: { tabId },
-    files: ['http_main.js'],
-    world: 'MAIN'
-  });
-});
+}, { url: [{ schemes: ['http', 'https'] }] });

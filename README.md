@@ -6,9 +6,9 @@ Identify likely sensitive HTTP responses in web applications, based on empirical
 
 This Chrome extension is based on `Manifest V3`, and includes:
 
-- Content Script
-- Background Script
-- Manifest
+- Content Script (`content_script.js`)
+- Background Script (`service_worker.js`)
+- Manifest (`manifest.json`)
 - Automatic build with `esbuild`
 
 ## How to use it

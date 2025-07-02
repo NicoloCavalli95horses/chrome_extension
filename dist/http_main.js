@@ -1,1 +1,173 @@
-function a({type:o,data:e}){window.postMessage({type:o,data:e},"*")}function d({hasSensitiveKeysFn:o}){let e=XMLHttpRequest.prototype,n=e.open,r=e.send,s=e.setRequestHeader;return e.open=function(t,p){return this._method=t,this._url=p,this._requestHeaders={},this._startTime=new Date().toISOString(),n.apply(this,arguments)},e.setRequestHeader=function(t,p){return this._requestHeaders[t]=p,s.apply(this,arguments)},e.send=function(t){return this.addEventListener("load",()=>{let p=new Date().toISOString(),i={uri:decodeURIComponent(this._url),verb:this._method,time:this._startTime,headers:this._requestHeaders};if(t)if(typeof t=="string")try{i.body=JSON.parse(t)}catch{i.body=t}else(typeof t=="object"||Array.isArray(t)||typeof t=="number"||typeof t=="boolean")&&(i.body=t);let c={status:this.status,time:p,headers:this.getAllResponseHeaders()};if(this.responseText)try{c.body=JSON.parse(this.responseText),c._SENSITIVE=o(c.body)}catch{c.body=this.responseText}a({type:"SERVICE_WORKER",data:{request:i,response:c||{}}})}),r.apply(this,arguments)},function(){e.open=n,e.send=r,e.setRequestHeader=s}}function h(){let o=window.fetch;window.fetch=function(...e){return o.apply(this,e).then(n=>{let r=n.clone(),s={request:e[0]||{},response:{}};return r.json().then(u=>(s.response={...u,is_json:!0},a({type:"SERVICE_WORKER",data:s}),n)).catch(()=>r.text().then(u=>(s.response=u,a({type:"SERVICE_WORKER",data:s}),n)))}).catch(n=>{throw n})}}var f=["locked","unlocked","premium","free","pro","subscribed"];function l(o){return R(o,f)}function y(o=[]){let e=r=>r.charAt(0).toUpperCase()+r.slice(1),n=[];return o.forEach(r=>{let s=e(r.toString());n.push(r,`is${s}`,`is_${r}`,`_${r}`)}),n}function m(o,e){if(o.charAt(0)=="_"){let n=new RegExp("^(.+)"+o+"$");return!!e.match(n)}return!1}function R(o,e=[]){function n(s,u){if(s&&typeof s=="object"){for(let t in s)if(Object.prototype.hasOwnProperty.call(s,t)){if(u.some(c=>t===c||m(c,t)))return!0;let i=s[t];if(typeof i=="object"&&i!==null&&n(i,u))return!0}}return!1}let r=y(e);return n(o,r)}x();function x(){console.log("[EXT] XHL/fetch intercepted in:",window.location.href),window.__injected=!0,d({hasSensitiveKeysFn:l}),h()}
+// src/scripts/utils.js
+function sendPostMessage({ type, data }) {
+  window.postMessage({ type, data }, "*");
+}
+
+// src/scripts/http/intercept_http.js
+function captureXMLHttpRequest({ hasSensitiveKeysFn: hasSensitiveKeysFn2 }) {
+  const XHR = XMLHttpRequest.prototype;
+  const open = XHR.open;
+  const send = XHR.send;
+  const setRequestHeader = XHR.setRequestHeader;
+  XHR.open = function(method, url) {
+    this._method = method;
+    this._url = url;
+    this._requestHeaders = {};
+    this._startTime = (/* @__PURE__ */ new Date()).toISOString();
+    return open.apply(this, arguments);
+  };
+  XHR.setRequestHeader = function(header, value) {
+    this._requestHeaders[header] = value;
+    return setRequestHeader.apply(this, arguments);
+  };
+  XHR.send = function(postData) {
+    this.addEventListener("load", () => {
+      const endTime = (/* @__PURE__ */ new Date()).toISOString();
+      const requestModel = {
+        uri: decodeURIComponent(this._url),
+        verb: this._method,
+        time: this._startTime,
+        headers: this._requestHeaders
+      };
+      if (postData) {
+        if (typeof postData === "string") {
+          try {
+            requestModel.body = JSON.parse(postData);
+          } catch (error) {
+            requestModel.body = postData;
+          }
+        } else if (typeof postData === "object" || Array.isArray(postData) || typeof postData === "number" || typeof postData === "boolean") {
+          requestModel.body = postData;
+        }
+      }
+      const responseModel = {
+        status: this.status,
+        time: endTime,
+        headers: this.getAllResponseHeaders(),
+        _priv: {
+          is_json: false,
+          sensitive: { is_sensitive: false, keywords_matched: [] }
+        }
+      };
+      if (this.responseText) {
+        try {
+          responseModel.body = JSON.parse(this.responseText);
+          responseModel._priv.is_json = true;
+          responseModel._priv.sensitive = hasSensitiveKeysFn2(responseModel.body);
+        } catch {
+          responseModel.body = this.responseText;
+        }
+      }
+      const data = {
+        request: requestModel,
+        response: responseModel || {}
+      };
+      sendPostMessage({ type: "XML_EVENT", data });
+    });
+    return send.apply(this, arguments);
+  };
+  const undoPatch = function() {
+    XHR.open = open;
+    XHR.send = send;
+    XHR.setRequestHeader = setRequestHeader;
+  };
+  return undoPatch;
+}
+function captureFetchRequest() {
+  const originalFetch = window.fetch;
+  window.fetch = function(...args) {
+    return originalFetch.apply(this, args).then((res) => {
+      const responseClone = res.clone();
+      const data = { request: args[0] || {}, response: {} };
+      return responseClone.json().then((parsed) => {
+        data.response = {
+          ...parsed,
+          _priv: {
+            is_json: true,
+            sensitive: hasSensitiveKeysFn(parsed)
+          }
+        };
+        sendPostMessage({ type: "FETCH_EVENT", data });
+        return res;
+      }).catch(() => {
+        const textResponseClone = res.clone();
+        return textResponseClone.text().then((text) => {
+          data.response = {
+            body: text,
+            _priv: {
+              is_json: false,
+              sensitive: { is_sensitive: false, keywords_matched: [] }
+            }
+          };
+          sendPostMessage({ type: "FETCH_EVENT", data });
+          return res;
+        });
+      });
+    }).catch((error) => {
+      throw error;
+    });
+  };
+}
+
+// src/scripts/http/analyze_http_body.js
+var ROOT_SENSITIVE_KEYS = ["locked", "unlocked", "premium", "free", "pro", "subscribed"];
+function analyzeJSONBody(body) {
+  const keys = matchKeys(body, ROOT_SENSITIVE_KEYS);
+  return { is_sensitive: !!keys.length, keywords_matched: keys };
+}
+function expandKeys(sensitiveKeys = []) {
+  const capitalizeFirstLetter = (k) => k.charAt(0).toUpperCase() + k.slice(1);
+  const ret = [];
+  sensitiveKeys.forEach((key) => {
+    const uppercaseKey = capitalizeFirstLetter(key.toString());
+    ret.push(key, `is${uppercaseKey}`, `is_${key}`, `_${key}`);
+  });
+  return ret;
+}
+function matchRegex(sensitive_key, target) {
+  if (sensitive_key.charAt(0) == "_") {
+    const reg = new RegExp("^(.+)" + sensitive_key + "$");
+    return !!target.match(reg);
+  }
+  return false;
+}
+function matchKeys(obj, sensitiveKeys = []) {
+  function checkRecursively(obj2, keys2, visited2) {
+    if (obj2 && typeof obj2 === "object") {
+      if (visited2.has(obj2)) {
+        return;
+      }
+      visited2.add(obj2);
+      for (const key in obj2) {
+        if (Object.prototype.hasOwnProperty.call(obj2, key)) {
+          keys2.forEach((k) => {
+            if ((k === key || matchRegex(k, key)) && !matchedKeys.includes(key)) {
+              matchedKeys.push(key);
+            }
+          });
+          const val = obj2[key];
+          if (typeof val === "object" && val !== null) {
+            checkRecursively(val, keys2, visited2);
+          }
+        }
+      }
+    }
+  }
+  const matchedKeys = [];
+  const keys = expandKeys(sensitiveKeys);
+  const visited = /* @__PURE__ */ new Set();
+  checkRecursively(obj, keys, visited);
+  return matchedKeys;
+}
+
+// src/scripts/http_main.js
+interceptHTTPmessages();
+function interceptHTTPmessages() {
+  if (window.__injected) {
+    return;
+  }
+  console.log("[EXT] XHL/fetch intercepted in:", window.location.href);
+  window.__injected = true;
+  captureXMLHttpRequest({ hasSensitiveKeysFn: analyzeJSONBody });
+  captureFetchRequest();
+}

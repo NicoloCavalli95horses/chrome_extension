@@ -59,12 +59,17 @@ export function captureXMLHttpRequest( {hasSensitiveKeysFn} ) {
         status: this.status,
         time: endTime,
         headers: this.getAllResponseHeaders(),
+        _priv: {
+          is_json: false,
+          sensitive: { is_sensitive: false, keywords_matched: [] }
+        }
       };
 
       if (this.responseText) {
         try {
           responseModel.body = JSON.parse(this.responseText);
-          responseModel._SENSITIVE = hasSensitiveKeysFn(responseModel.body);
+          responseModel._priv.is_json = true;
+          responseModel._priv.sensitive = hasSensitiveKeysFn(responseModel.body);
         } catch {
           responseModel.body = this.responseText;
         }
@@ -74,7 +79,7 @@ export function captureXMLHttpRequest( {hasSensitiveKeysFn} ) {
         response: responseModel || {}
       };
 
-      sendPostMessage( {type: 'SERVICE_WORKER', data} );
+      sendPostMessage( {type: 'XML_EVENT', data} );
     })
     return send.apply(this, arguments);
   };
@@ -95,23 +100,36 @@ export function captureFetchRequest() {
   const originalFetch = window.fetch;
   window.fetch = function (...args) {
     return originalFetch.apply(this, args)
-      .then(response => {
-        const responseClone = response.clone();
+      .then(res => {
+        const responseClone = res.clone();
         const data = { request: args[0] || {}, response: {} };
 
         // Send JSON if possible
         return responseClone.json()
           .then(parsed => {
-            data.response = { ...parsed, is_json: true };
-            sendPostMessage( {type: 'SERVICE_WORKER', data} );
-            return response;
+            data.response = {
+              ...parsed,
+              _priv: {
+                is_json: true,
+                sensitive: hasSensitiveKeysFn(parsed)
+              },
+            };
+            sendPostMessage( {type: 'FETCH_EVENT', data} );
+            return res;
           })
           .catch(() => {
-            return responseClone.text()
+            const textResponseClone = res.clone();
+            return textResponseClone.text()
               .then(text => {
-                data.response = text;
-                sendPostMessage( {type: 'SERVICE_WORKER', data} );
-                return response;
+                data.response = {
+                  body: text,
+                  _priv: {
+                    is_json: false,
+                    sensitive: { is_sensitive: false, keywords_matched: [] }
+                  }
+                };
+                sendPostMessage( {type: 'FETCH_EVENT', data} );
+                return res;
               });
           });
       })

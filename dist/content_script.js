@@ -1,4 +1,7 @@
-function o(){let e=document.createElement("div");e.style.cssText=`
+// src/scripts/utils.js
+function DOMManipulationCheck() {
+  const el = document.createElement("div");
+  el.style.cssText = `
     display: block; 
     position: fixed;
     bottom: 10px;
@@ -11,4 +14,17 @@ function o(){let e=document.createElement("div");e.style.cssText=`
     border-radius: 10px;
     padding: 10px 12px;
     color: black;
-  `,e.innerHTML="HTTP analyzer is on \u{1F680}",document.body.appendChild(e)}o();window.addEventListener("message",e=>{e.source===window&&e.data.type==="SERVICE_WORKER"&&e.data.data.response._SENSITIVE&&console.log("Likely sensitive =>",e.data.data.response)});
+  `;
+  el.innerHTML = "HTTP analyzer is on \u{1F680}";
+  document.body.appendChild(el);
+}
+
+// src/content_script.js
+DOMManipulationCheck();
+window.addEventListener("message", (event) => {
+  if (event.source === window && ["FETCH_EVENT", "XML_EVENT"].includes(event.data.type)) {
+    if (event.data.data?.response?._priv?.sensitive?.is_sensitive) {
+      console.log(event.data.data);
+    }
+  }
+});

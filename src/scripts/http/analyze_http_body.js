@@ -20,7 +20,8 @@ const ROOT_SENSITIVE_KEYS = ['locked', 'unlocked', 'premium', 'free', 'pro', 'su
  * @returns true if at least one sensitive key is found
  */
 export function analyzeJSONBody(body) {
-  return containsSensitiveKey(body, ROOT_SENSITIVE_KEYS);
+  const keys = matchKeys(body, ROOT_SENSITIVE_KEYS);
+  return { is_sensitive: !!keys.length, keywords_matched: keys };
 }
 
 /**
@@ -57,30 +58,38 @@ export function matchRegex(sensitive_key, target) {
 /**
  * @param {Object} obj 
  * @param {Array} sensitiveKeys 
- * @returns true if sensitive keys is found
+ * @returns an array with the keys matched
  */
-export function containsSensitiveKey(obj, sensitiveKeys = []) {
-  function checkRecursively(obj, keys) {
+export function matchKeys(obj, sensitiveKeys = []) {
+  function checkRecursively(obj, keys, visited) {
     if (obj && typeof obj === 'object') {
+      // Prevent circular references
+      if (visited.has(obj)) {
+        return;
+      }
+      visited.add(obj);
+
       for (const key in obj) {
         if (Object.prototype.hasOwnProperty.call(obj, key)) {
-          const hasSensitiveKey = keys.some(k => key === k || matchRegex(k, key));
-          if (hasSensitiveKey) {
-            return true;
-          }
-
-          const value = obj[key];
-          if (typeof value === 'object' && value !== null) {
-            if (checkRecursively(value, keys)) {
-              return true;
+          // Check matches  
+          keys.forEach(k => {
+            if ((k === key || matchRegex(k, key)) && !matchedKeys.includes(key)) {
+              matchedKeys.push(key);
             }
+          });
+          // If current value is an object, check recursively
+          const val = obj[key];
+          if (typeof val === 'object' && val !== null) {
+            checkRecursively(val, keys, visited);
           }
         }
       }
     }
-    return false;
   }
 
+  const matchedKeys = [];
   const keys = expandKeys(sensitiveKeys);
-  return checkRecursively(obj, keys);
+  const visited = new Set();
+  checkRecursively(obj, keys, visited);
+  return matchedKeys;
 }
