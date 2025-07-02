@@ -1,4 +1,10 @@
 //==============================
+// Import
+//==============================
+
+
+
+//==============================
 // Utils functions
 //==============================
 
@@ -16,7 +22,18 @@ export function DOMManipulationCheck() {
     place-content: center;
     border-radius: 10px;
     padding: 10px 12px;
+    color: black;
   `;
   el.innerHTML = 'HTTP analyzer is on 🚀'
   document.body.appendChild(el);
 }
+
+
+/**
+ * Send message with window.postMessage
+ * @param {String} type - sender ID
+ * @param {Object} data
+ */
+export function sendPostMessage( {type, data} ) {
+  window.postMessage( {type, data}, '*');
+};

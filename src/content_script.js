@@ -1,7 +1,7 @@
 //==============================
 // Import
 //==============================
-import { DOMManipulationCheck } from './utils/utils.js';
+import { DOMManipulationCheck } from './scripts/utils.js';
 
 
 //==============================

@@ -57,13 +57,14 @@ function cleanDir(dir) {
 
 
 async function build() {
+  const t1 = performance.now();
   cleanDir(distDir);
   copyStaticFiles();
 
   const entryPoints = [
     { in: join(srcDir, 'content_script.js'), out: join(distDir, 'content_script.js') },
     { in: join(srcDir, 'service_worker.js'), out: join(distDir, 'service_worker.js') },
-    { in: join(srcDir, 'utils', 'http_main.js'), out: join(distDir, 'http_main.js') },
+    { in: join(srcDir, 'scripts', 'http_main.js'), out: join(distDir, 'http_main.js') },
   ];
 
   for (const entry of entryPoints) {
@@ -79,7 +80,9 @@ async function build() {
     });
   }
 
-  console.log('✅ Build completed successfully\n')
+  const t2 = performance.now();
+  const elapsedSec = (t2 - t1) / 1000;
+  console.log(`✅ Build successfully in ${elapsedSec.toFixed(2)} seconds\n`)
 }
 
 build().catch(() => process.exit(1));
