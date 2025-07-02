@@ -29,7 +29,7 @@ function interceptHTTPmessages() {
 
   // Wrap HTTP requests and analyze their body
   captureXMLHttpRequest( {hasSensitiveKeysFn: analyzeJSONBody} );
-  captureFetchRequest();
+  captureFetchRequest( {hasSensitiveKeysFn: analyzeJSONBody} );
 }
 
 

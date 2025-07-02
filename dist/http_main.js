@@ -4,7 +4,7 @@ function sendPostMessage({ type, data }) {
 }
 
 // src/scripts/http/intercept_http.js
-function captureXMLHttpRequest({ hasSensitiveKeysFn: hasSensitiveKeysFn2 }) {
+function captureXMLHttpRequest({ hasSensitiveKeysFn }) {
   const XHR = XMLHttpRequest.prototype;
   const open = XHR.open;
   const send = XHR.send;
@@ -53,7 +53,7 @@ function captureXMLHttpRequest({ hasSensitiveKeysFn: hasSensitiveKeysFn2 }) {
         try {
           responseModel.body = JSON.parse(this.responseText);
           responseModel._priv.is_json = true;
-          responseModel._priv.sensitive = hasSensitiveKeysFn2(responseModel.body);
+          responseModel._priv.sensitive = hasSensitiveKeysFn(responseModel.body);
         } catch {
           responseModel.body = this.responseText;
         }
@@ -73,7 +73,7 @@ function captureXMLHttpRequest({ hasSensitiveKeysFn: hasSensitiveKeysFn2 }) {
   };
   return undoPatch;
 }
-function captureFetchRequest() {
+function captureFetchRequest({ hasSensitiveKeysFn }) {
   const originalFetch = window.fetch;
   window.fetch = function(...args) {
     return originalFetch.apply(this, args).then((res) => {
@@ -110,7 +110,20 @@ function captureFetchRequest() {
 }
 
 // src/scripts/http/analyze_http_body.js
-var ROOT_SENSITIVE_KEYS = ["locked", "unlocked", "premium", "free", "pro", "subscribed"];
+var ROOT_SENSITIVE_KEYS = [
+  "admin",
+  "free",
+  "locked",
+  "only",
+  // '[subscriber]_only', '[brand]_only'
+  "permission",
+  "plus",
+  "premium",
+  "pro",
+  "unlocked",
+  "subscribed"
+  // can lead to FP if used for authentication
+];
 function analyzeJSONBody(body) {
   const keys = matchKeys(body, ROOT_SENSITIVE_KEYS);
   return { is_sensitive: !!keys.length, keywords_matched: keys };
@@ -142,6 +155,7 @@ function matchKeys(obj, sensitiveKeys = []) {
         if (Object.prototype.hasOwnProperty.call(obj2, key)) {
           keys2.forEach((k) => {
             if ((k === key || matchRegex(k, key)) && !matchedKeys.includes(key)) {
+              console.log(`[EXT] Found key '${key}', that matches '${k}'`);
               matchedKeys.push(key);
             }
           });
@@ -169,5 +183,5 @@ function interceptHTTPmessages() {
   console.log("[EXT] XHL/fetch intercepted in:", window.location.href);
   window.__injected = true;
   captureXMLHttpRequest({ hasSensitiveKeysFn: analyzeJSONBody });
-  captureFetchRequest();
+  captureFetchRequest({ hasSensitiveKeysFn: analyzeJSONBody });
 }

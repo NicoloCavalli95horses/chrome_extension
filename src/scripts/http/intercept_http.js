@@ -95,8 +95,10 @@ export function captureXMLHttpRequest( {hasSensitiveKeysFn} ) {
 
 /**
  * Patching of native window.fetch function
-*/
-export function captureFetchRequest() {
+ * @param {Function} hasSensitiveKeysFn - function that analyze sensitive keys 
+ * @returns
+ */
+export function captureFetchRequest( {hasSensitiveKeysFn} ) {
   const originalFetch = window.fetch;
   window.fetch = function (...args) {
     return originalFetch.apply(this, args)

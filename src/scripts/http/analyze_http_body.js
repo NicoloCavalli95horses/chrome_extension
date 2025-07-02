@@ -7,7 +7,20 @@
 //==============================
 // Consts
 //==============================
-const ROOT_SENSITIVE_KEYS = ['locked', 'unlocked', 'premium', 'free', 'pro', 'subscribed'];
+
+// The following keys are matched entirely, or considering [text/digits]_[key]
+const ROOT_SENSITIVE_KEYS = [
+  'admin',
+  'free',
+  'locked',
+  'only', // '[subscriber]_only', '[brand]_only'
+  'permission',
+  'plus',
+  'premium',
+  'pro',
+  'unlocked',
+  'subscribed', // can lead to FP if used for authentication
+];
 
 
 
@@ -74,6 +87,7 @@ export function matchKeys(obj, sensitiveKeys = []) {
           // Check matches  
           keys.forEach(k => {
             if ((k === key || matchRegex(k, key)) && !matchedKeys.includes(key)) {
+              console.log(`[EXT] Found key '${key}', that matches '${k}'`)
               matchedKeys.push(key);
             }
           });
