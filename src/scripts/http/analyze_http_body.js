@@ -9,6 +9,9 @@
 //==============================
 
 // The following keys are matched entirely, or considering [text/digits]_[key]
+// consider distance levinshtima time
+// consider translation
+// expand keywords from DOM analysis (Eg., get brand name)
 const ROOT_SENSITIVE_KEYS = [
   'admin',
   'free',
@@ -20,6 +23,7 @@ const ROOT_SENSITIVE_KEYS = [
   'pro',
   'unlocked',
   'subscribed', // can lead to FP if used for authentication
+  //role, user
 ];
 
 
@@ -34,8 +38,13 @@ const ROOT_SENSITIVE_KEYS = [
  */
 export function analyzeJSONBody(body) {
   const keys = matchKeys(body, ROOT_SENSITIVE_KEYS);
-  return { is_sensitive: !!keys.length, keywords_matched: keys };
+  return {
+    is_sensitive: !!keys.length,
+    keywords_matched: keys
+  };
 }
+
+
 
 /**
  * @param {Array} sensitiveKeys 

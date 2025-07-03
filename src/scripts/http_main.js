@@ -15,21 +15,21 @@ import {
 //==============================
 // Main
 //==============================
-interceptHTTPmessages();
+http_main();
 
 
 
 //==============================
 // Functions
 //==============================
-function interceptHTTPmessages() {
+function http_main() {
   if (window.__injected) { return; } // prevent double injections
   console.log("[EXT] XHL/fetch intercepted in:", window.location.href);
   window.__injected = true;
 
   // Wrap HTTP requests and analyze their body
-  captureXMLHttpRequest( {hasSensitiveKeysFn: analyzeJSONBody} );
-  captureFetchRequest( {hasSensitiveKeysFn: analyzeJSONBody} );
+  captureXMLHttpRequest( {bodyAnalysisFn: analyzeJSONBody} );
+  captureFetchRequest( {bodyAnalysisFn: analyzeJSONBody} );
 }
 
 
