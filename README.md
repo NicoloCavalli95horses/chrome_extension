@@ -15,5 +15,6 @@ This Chrome extension is based on `Manifest V3`, and includes:
 
 - `npm install`
 - `npm run build`
+- `npm run test`
 - Upload the extension in `chrome://extensions/`, selecting the `dist` folder
 

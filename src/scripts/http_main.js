@@ -31,9 +31,3 @@ function http_main() {
   captureXMLHttpRequest( {bodyAnalysisFn: analyzeJSONBody} );
   captureFetchRequest( {bodyAnalysisFn: analyzeJSONBody} );
 }
-
-
-// TODO 
-// 1- sometimes window.fetch and XMLHttpRequest are already wrapped by the target website, we need a way to
-//  make sure that our wrapping is the latest
-// 2- some JSON bodies are protected by anti-embedding tokens. This means that they are sensitivie

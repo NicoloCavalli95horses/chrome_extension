@@ -1,9 +1,18 @@
 {
   "devDependencies": {
-    "esbuild": "^0.25.5"
+    "@babel/preset-env": "^7.28.0",
+    "babel-jest": "^30.0.4",
+    "esbuild": "^0.25.5",
+    "jest": "^30.0.4"
   },
   "type": "module",
   "scripts": {
-    "build": "node esbuild.config.js"
+    "build": "node esbuild.config.js",
+    "test": "jest"
+  },
+  "jest": {
+    "transform": {
+      "^.+\\.js$": "babel-jest"
+    }
   }
 }

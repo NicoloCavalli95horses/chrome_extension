@@ -1,7 +1,10 @@
 //==============================
 // Import
 //==============================
-import { sendPostMessage } from '../utils.js';
+import {
+  sendPostMessage,
+  bypassAntiEmbeddingTokens,
+} from '../utils.js';
 
 
 
@@ -80,17 +83,28 @@ function getXHResponseBody( {data, func} ) {
     _priv: {is_json: false, is_sensitive: false, keywords_matched: []}
   };
 
-  if (!data) { ret; } 
-  if (["object", "number", "boolean"].includes(typeof data) || Array.isArray(data)) { return ret; } 
+  if (!data) { return ret; } 
+  const type = typeof data;
+  if (["object", "number", "boolean"].includes(type) || Array.isArray(data)) { return ret; } 
    
-  if (["string"].includes(typeof data)) {
+  if (type === "string") {
     try {
+      // Best case scenario, the data can be directly parsed
       const body = JSON.parse(data);
       return {body, _priv: {...func(body), is_json: true}};
     } catch {
-      return ret;
+      // Data still in JSON format but an anti-embedding token is used
+      const idx = bypassAntiEmbeddingTokens(data);
+      if ( !Number.isInteger(idx) ) { return ret; } 
+      try {
+        const sliced = slideBodyText(idx, data);
+        const body = JSON.parse(sliced);
+        return {body, _priv: {...func(body), is_json: true, anti_embedding_token: true}};
+      } catch {
+        return ret;
+        }
+      }
     }
-  }
   return ret;
 }
 
@@ -187,66 +201,37 @@ async function getFetchResponseBody( {data, func} ) {
       const textResponse = await data.text();
       ret.body = textResponse;
     };
-  } catch (err) {
-    return ret
+  } catch {
+    // Data still in JSON format but an anti-embedding token is used
+    const textResponse = await data.text();
+    const idx = bypassAntiEmbeddingTokens(textResponse);
+    if (!Number.isInteger(idx)) { return ret; } 
+    try {
+      const sliced = slideBodyText(idx, textResponse);
+      const body = JSON.parse(sliced);
+      return {body, _priv: {...func(body), is_json: true, anti_embedding_token: true}};
+    } catch {
+      return ret;
+      }
   }
   return ret;
 }
 
 
 /**
- * This function tries to detect if an HTTP body contains JSON,
- * bypassing common JSON hijacking prevention tokens, e.g., "])}while(1);</x>//{"test":true}
- * @param {String} data - string to parse
- * @return JSON object or error
+ * 
+ * @param {Number} idx 
+ * @param {String} data 
+ * @returns sliced data
  */
-function fineParsingJSON(data) {
-  if (typeof data !== 'string') {
-    return new Error();
-  }
+function slideBodyText(idx, data) {
+  return idx >= 0 ? data.slice(idx) : data.slice(0, idx);
+}
 
-  const parsed = [];
-  const thr = Math.min(data.length, 80); // to check
-  let index = -1;
-  let is_valid = false;
-  let slice_idx = -1;
 
-  for (i = 0; i < thr; i++) {
-    const char = data[i];
-
-    // Search the first `{` available
-    if (!parsed.length && char === '{') {
-      parsed.push(char);
-      index = i;
-      slice_idx = i;
-      continue;
-    }
-
-    // if `{` exist, the following char must be `"`
-    if (parsed.length == 1 && i == (index + 1) && char === '"') {
-      parsed.push(char);
-      index = i;
-      continue;
-    }
-
-    // if `{"` exist, check that the following char is eligible
-    if (parsed.length == 2 && i == (index + 1) && char !== '"') {
-      parsed.push(char);
-      index = i;
-      continue;
-    }
-
-    // if `{"a` exist, next must be another char or a `:` but not a `"`
-    if (parsed.length > 2 && char !== '"') {
-      parsed.push(char);
-      index = i;
-    }
-
-    // there should be a `:` after idx 4
-    if (parsed.length > 4 && parsed.includes(':') && !parsed.slice(0, 4).includes(':')) {
-      is_valid = true;
-    }
-  }
-
-  return is_valid ? JSON.parse(data) : new Error();
+// Test function: replace and return modified HTTP message
+async function modifyHTTPResponse( {response, oldString, newString} ) {
+  const txt = await response.text();
+  const replacedTxt = txt.replace(oldString, newString);
+  return new Response(replacedTxt);
 }

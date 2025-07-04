@@ -9,7 +9,7 @@
 //==============================
 
 // The following keys are matched entirely, or considering [text/digits]_[key]
-// consider distance levinshtima time
+// consider distance Levenshtein distance (https://github.com/gustf/js-levenshtein)
 // consider translation
 // expand keywords from DOM analysis (Eg., get brand name)
 const ROOT_SENSITIVE_KEYS = [
@@ -20,10 +20,12 @@ const ROOT_SENSITIVE_KEYS = [
   'permission',
   'plus',
   'premium',
+  'price',
   'pro',
+  'role',
   'unlocked',
   'subscribed', // can lead to FP if used for authentication
-  //role, user
+  'user'
 ];
 
 
@@ -83,7 +85,7 @@ export function matchRegex(sensitive_key, target) {
  * @returns an array with the keys matched
  */
 export function matchKeys(obj, sensitiveKeys = []) {
-  function checkRecursively(obj, keys, visited) {
+  const checkRecursively = (obj, keys, visited) => {
     if (obj && typeof obj === 'object') {
       // Prevent circular references
       if (visited.has(obj)) {
