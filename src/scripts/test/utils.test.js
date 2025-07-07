@@ -2,6 +2,7 @@
 // Import
 //==============================
 import {
+  getDomainName,
   bypassAntiEmbeddingTokens,
 } from '../utils.js';
 
@@ -11,30 +12,67 @@ import {
 //==============================
 
 describe('Bypass anti-embedding JSON tokens', () => {
-  test('Regular JSON', () => {
+  test('{"test":true}', () => {
     const idx = bypassAntiEmbeddingTokens(`{"test":true}`);
-    expect(idx).toBe(0);
+    expect(idx).toEqual([0, undefined]);
   });
 
-  test('Variant with `)}while(1);</x>//`', () => {
+  test(')}while(1);</x>//', () => {
     const idx = bypassAntiEmbeddingTokens(`)}while(1);</x>//{"test":true}`);
-    expect(idx).toBe(17);
+    expect(idx).toEqual([17, undefined]);
   });
 
-  test('Variant with double opening `{{`', () => {
+  test('{{', () => {
     const idx = bypassAntiEmbeddingTokens(`{{"test":true}`);
-    expect(idx).toBe(1);
+    expect(idx).toEqual([1, undefined]);
+  });
+
+  test('for(;;);', () => {
+    const idx = bypassAntiEmbeddingTokens(`for(;;);{"test":true}`);
+    expect(idx).toEqual([8, undefined]);
+  });
+
+  test('}}', () => {
+    const idx = bypassAntiEmbeddingTokens(`{"test":true}}`);
+    expect(idx).toEqual([0, -1]);
+  });
+
+  test('{{"test":true}}', () => {
+    const idx = bypassAntiEmbeddingTokens(`{{"test":true}}`);
+    expect(idx).toEqual([1, -1]);
   });
   
-  test('Variant with double opening `for(;;);`', () => {
-    const idx = bypassAntiEmbeddingTokens(`for(;;);{"test":true}`);
-    expect(idx).toBe(8);
+  
+  test('{""}{{"test":true}}{"test"}', () => {
+    const idx = bypassAntiEmbeddingTokens(`{""}{{"test":true}}{"test"}`);
+    expect(idx).toEqual([5, -9]);
+  });
+ 
+  test('{"}{:}{{"test":true}}{""}{{:}}', () => {
+    const idx = bypassAntiEmbeddingTokens(`{"}{:}{{"test":true}}{""}{{:}}`);
+    expect(idx).toEqual([7, -10]);
+  });
+  
+  test('{"a":""}{{{"{{:}}', () => {
+    const idx = bypassAntiEmbeddingTokens(`{"a":""}{{{"{{:}}`);
+    expect(idx).toEqual([0, -9]);
+  });
+});
+
+
+describe('Get domain name', () => {
+  test('www.google.com', () => {
+    const domain = getDomainName(`www.google.com`);
+    expect(domain).toEqual(['google']);
+  });
+  
+  test('www.very.long.domain.com', () => {
+    const domain = getDomainName(`www.very.long.domain.com`);
+    expect(domain).toEqual(['very','long','domain']);
   });
 
-   test('Variant with double closing `}}`', () => {
-    // (!) This case has never been found, but it is possible to have tokens at the end. To handle
-    const idx = bypassAntiEmbeddingTokens(`{"test":true}}`);
-    expect(idx).toBe(1);
+  test('www.very.very.long.domain.com', () => {
+    const domain = getDomainName(`www.very.very.long.domain.com`);
+    expect(domain).toEqual(['very','long','domain']);
   });
-
 })

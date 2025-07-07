@@ -34,8 +34,8 @@ export function DOMManipulationCheck() {
  * @param {String} type - sender ID
  * @param {Object} data
  */
-export function sendPostMessage( {type, data} ) {
-  window.postMessage( {type, data}, '*');
+export function sendPostMessage({ type, data }) {
+  window.postMessage({ type, data }, '*');
 };
 
 
@@ -45,56 +45,108 @@ export function sendPostMessage( {type, data} ) {
  * @param {String} data - string to parse
  * @return slice index
  */
-export function bypassAntiEmbeddingTokens(data) {
-  let parsed = [];
-  const thr = Math.min(data.length, 80); // to check
-  let index = undefined;
-  let is_valid = false;
-  let slice_idx = undefined;
-  
-  if (typeof data !== 'string') { return slice_idx; }
 
+export function bypassAntiEmbeddingTokens(data) {
+  if (!data.length || typeof data !== 'string') { return; }
+  let head = [];
+  let tail = [];
+  const thr = Math.min(data.length, 80); // No need to parse the whole object: anti-embedding tokens are usually short
+  let head_idx = undefined;
+  let tail_idx = undefined;
+  let is_head_valid = false;
+  let slice_idx_head = undefined;
+  let slice_idx_tail = undefined;
+
+  // Head
   for (let i = 0; i < thr; i++) {
-    const char = data[i];
-    const isFollowingChar = i === (index + 1);
+    const head_char = data[i];
+    const is_next_char = i === (head_idx + 1);
 
     // Search the first `{` available
-    if (!parsed.length && char === '{') {
-      parsed.push(char);
-      index = i;
-      slice_idx = i;
-      continue;
-    } 
-    
-    // if `{` exist, the following char must be `"`
-    if (parsed.length == 1 && isFollowingChar) {
-        if (char === '"') {
-          parsed.push(char);
-          index = i;
-        } else if (char === '{') {
-          // if we have another `{`, update indexes
-          index = i;
-          slice_idx = i;
-        }
+    if (!head.length && head_char === '{') {
+      head.push(head_char);
+      head_idx = i;
+      slice_idx_head = i;
       continue;
     }
-    
-    // if `{"` exist, check that the following char is eligible
-    if (parsed.length == 2 && isFollowingChar && char !== '"') {
-      parsed.push(char);
-      index = i;
+
+    // if `{` exist, the following head_char must be `"`
+    if (head.length == 1) {
+      if (head_char === '"') {
+        head.push(head_char);
+        head_idx = i;
+      } else if (head_char === '{') {
+        // if we have another `{`, update indexes
+        head_idx = i;
+        slice_idx_head = i;
+      }
       continue;
-    } 
-    
+    }
+
+    // if `{"` exist, check that the following head_char is eligible
+    if (head.length == 2) {
+      if (!['"', '}', ':'].includes(head_char)) {
+        head.push(head_char);
+        head_idx = i;
+        continue;
+      } else {
+        head = [];
+        head_idx = i;
+        slice_idx_head = i;
+        continue;
+      }
+    }
+
     // if `{"a` exist, keep adding other chars
-    if (parsed.length > 2) {
-      parsed.push(char);
-      index = i;
-        // there should be a `:` after idx 4
-        if (parsed.length > 4 && parsed.includes(':') && !parsed.slice(0, 4).includes(':')) {
-          is_valid = true;
-        }
-    } 
+    if (head.length > 2) {
+      head.push(head_char);
+      // there should be a `:` after idx 4
+      if (head.length > 4 && head.includes(':') && !head.slice(0, 4).includes(':')) {
+        is_head_valid = true;
+      }
+    }
   }
-  return is_valid? slice_idx : undefined;
+
+  // Tail
+  const min = Math.max(data.length - thr, 0);
+
+  for (let i = data.length - 1; i >= min; i--) {
+    const tail_char = data[i];
+
+    // Search the first `}` available
+    if (!tail.length && tail_char === '}') {
+      tail.push(tail_char);
+      tail_idx = i;
+      slice_idx_tail = data.length - tail_idx - 1;
+      continue;
+    }
+
+    // if we have another `}`, update indexes
+    if (tail.length == 1 && tail_char === '}' && i > head_idx) {
+      tail_idx = i;
+      slice_idx_tail = data.length - tail_idx - 1;
+    }
+  }
+
+  const is_tail_valid = tail.includes('}');
+  const idx_tail = slice_idx_tail === 0 ? undefined : slice_idx_tail * -1;
+
+  return is_head_valid && is_tail_valid ? [slice_idx_head, idx_tail] : [];
+}
+
+
+/**
+ * 
+ * @param {String} hostname 
+ * @returns domain name (string)
+ */
+export function getDomainName(hostname) {
+  const domainParts = hostname.split('.');
+  const isValid = domainParts.length > 2 && domainParts[0] === 'www';
+  
+  const partsToReturn = isValid
+    ? domainParts.slice(1, domainParts.length - 1)
+    : domainParts.slice(0, domainParts.length - 1);
+
+  return [...new Set(partsToReturn)];
 }

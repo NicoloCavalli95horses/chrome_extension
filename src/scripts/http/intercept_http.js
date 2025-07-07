@@ -95,7 +95,7 @@ function getXHResponseBody( {data, func} ) {
     } catch {
       // Data still in JSON format but an anti-embedding token is used
       const idx = bypassAntiEmbeddingTokens(data);
-      if ( !Number.isInteger(idx) ) { return ret; } 
+      if ( idx.some(i => !Number.isInteger(i)) ) { return ret; } 
       try {
         const sliced = slideBodyText(idx, data);
         const body = JSON.parse(sliced);
@@ -220,12 +220,12 @@ async function getFetchResponseBody( {data, func} ) {
 
 /**
  * 
- * @param {Number} idx 
+ * @param {Array} idx 
  * @param {String} data 
  * @returns sliced data
  */
 function slideBodyText(idx, data) {
-  return idx >= 0 ? data.slice(idx) : data.slice(0, idx);
+  return data.slice(idx[0], idx[1]);
 }
 
 

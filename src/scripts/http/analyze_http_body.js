@@ -1,7 +1,9 @@
 //==============================
 // Import
 //==============================
-
+import {
+  getDomainName,
+} from '../utils.js'
 
 
 //==============================
@@ -9,10 +11,11 @@
 //==============================
 
 // The following keys are matched entirely, or considering [text/digits]_[key]
-// consider distance Levenshtein distance (https://github.com/gustf/js-levenshtein)
-// consider translation
-// expand keywords from DOM analysis (Eg., get brand name)
-const ROOT_SENSITIVE_KEYS = [
+// @TODO: 
+// - consider distance Levenshtein distance (https://github.com/gustf/js-levenshtein)
+// - consider translation
+
+const root_sensitive_keys = [
   'admin',
   'free',
   'locked',
@@ -25,7 +28,8 @@ const ROOT_SENSITIVE_KEYS = [
   'role',
   'unlocked',
   'subscribed', // can lead to FP if used for authentication
-  'user'
+  'user',
+  ...getDomainName(window.location.host)
 ];
 
 
@@ -39,7 +43,7 @@ const ROOT_SENSITIVE_KEYS = [
  * @returns true if at least one sensitive key is found
  */
 export function analyzeJSONBody(body) {
-  const keys = matchKeys(body, ROOT_SENSITIVE_KEYS);
+  const keys = matchKeys(body, root_sensitive_keys);
   return {
     is_sensitive: !!keys.length,
     keywords_matched: keys
