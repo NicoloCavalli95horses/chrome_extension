@@ -2,35 +2,13 @@
 // Import
 //==============================
 import {
-  getDomainName,
+  SENSITIVE_KEYS,
 } from '../utils.js'
 
 
 //==============================
 // Consts
 //==============================
-
-// The following keys are matched entirely, or considering [text/digits]_[key]
-// @TODO: 
-// - consider distance Levenshtein distance (https://github.com/gustf/js-levenshtein)
-// - consider translation
-
-const root_sensitive_keys = [
-  'admin',
-  'free',
-  'locked',
-  'only', // '[subscriber]_only', '[brand]_only'
-  'permission',
-  'plus',
-  'premium',
-  'price',
-  'pro',
-  'role',
-  'unlocked',
-  'subscribed', // can lead to FP if used for authentication
-  'user',
-  ...getDomainName(window.location.host)
-];
 
 
 
@@ -43,27 +21,11 @@ const root_sensitive_keys = [
  * @returns true if at least one sensitive key is found
  */
 export function analyzeJSONBody(body) {
-  const keys = matchKeys(body, root_sensitive_keys);
+  const keys = matchKeys(body, SENSITIVE_KEYS);
   return {
     is_sensitive: !!keys.length,
     keywords_matched: keys
   };
-}
-
-
-
-/**
- * @param {Array} sensitiveKeys 
- * @returns expand keys considering common scenarios (e.g., isKey, is_key, _key)
- */
-export function expandKeys(sensitiveKeys = []) {
-  const capitalizeFirstLetter = (k) => k.charAt(0).toUpperCase() + k.slice(1);
-  const ret = [];
-  sensitiveKeys.forEach(key => {
-    const uppercaseKey = capitalizeFirstLetter(key.toString());
-    ret.push(key, `is${uppercaseKey}`, `is_${key}`, `_${key}`);
-  });
-  return ret;
 }
 
 
@@ -75,9 +37,15 @@ export function expandKeys(sensitiveKeys = []) {
  */
 export function matchRegex(sensitive_key, target) {
   if (sensitive_key.charAt(0) == '_') {
-    const reg = new RegExp('^(.+)' + sensitive_key + '$');
+    const reg = new RegExp(sensitive_key + '$');
+    return !!target.match(reg);
+  } 
+
+  if (sensitive_key.charAt(sensitive_key.length - 1) == '_') {
+    const reg = new RegExp('^' + sensitive_key); 
     return !!target.match(reg);
   }
+
   return false;
 }
 
@@ -88,7 +56,7 @@ export function matchRegex(sensitive_key, target) {
  * @param {Array} sensitiveKeys 
  * @returns an array with the keys matched
  */
-export function matchKeys(obj, sensitiveKeys = []) {
+export function matchKeys(obj, keys = []) {
   const checkRecursively = (obj, keys, visited) => {
     if (obj && typeof obj === 'object') {
       // Prevent circular references
@@ -117,7 +85,6 @@ export function matchKeys(obj, sensitiveKeys = []) {
   }
 
   const matchedKeys = [];
-  const keys = expandKeys(sensitiveKeys);
   const visited = new Set();
   checkRecursively(obj, keys, visited);
   return matchedKeys;

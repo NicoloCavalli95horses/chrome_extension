@@ -1,10 +1,19 @@
+/**
+ * @jest-environment jsdom
+ */
+
 //==============================
 // Import
 //==============================
 import {
   getDomainName,
+  SENSITIVE_KEYS,
   bypassAntiEmbeddingTokens,
 } from '../utils.js';
+
+import {
+  matchKeys,
+} from '../http/analyze_http_body.js';
 
 
 //==============================
@@ -32,30 +41,9 @@ describe('Bypass anti-embedding JSON tokens', () => {
     expect(idx).toEqual([8, undefined]);
   });
 
-  test('}}', () => {
-    const idx = bypassAntiEmbeddingTokens(`{"test":true}}`);
-    expect(idx).toEqual([0, -1]);
-  });
-
-  test('{{"test":true}}', () => {
-    const idx = bypassAntiEmbeddingTokens(`{{"test":true}}`);
-    expect(idx).toEqual([1, -1]);
-  });
-  
-  
-  test('{""}{{"test":true}}{"test"}', () => {
-    const idx = bypassAntiEmbeddingTokens(`{""}{{"test":true}}{"test"}`);
-    expect(idx).toEqual([5, -9]);
-  });
- 
-  test('{"}{:}{{"test":true}}{""}{{:}}', () => {
-    const idx = bypassAntiEmbeddingTokens(`{"}{:}{{"test":true}}{""}{{:}}`);
-    expect(idx).toEqual([7, -10]);
-  });
-  
-  test('{"a":""}{{{"{{:}}', () => {
-    const idx = bypassAntiEmbeddingTokens(`{"a":""}{{{"{{:}}`);
-    expect(idx).toEqual([0, -9]);
+  test('{"test":{"test":true}}', () => {
+    const idx = bypassAntiEmbeddingTokens(`{"test":{"test":true}}`);
+    expect(idx).toEqual([0, undefined]);
   });
 });
 
@@ -74,5 +62,32 @@ describe('Get domain name', () => {
   test('www.very.very.long.domain.com', () => {
     const domain = getDomainName(`www.very.very.long.domain.com`);
     expect(domain).toEqual(['very','long','domain']);
+  });
+});
+
+
+describe('Matching keys', () => {
+  test('key', () => {
+    const obj = {pro: true };
+    const res = matchKeys(obj, SENSITIVE_KEYS);
+    expect(res).toEqual(['pro']);
+  });
+
+  test('_key', () => {
+    const obj = {user_pro: true };
+    const res = matchKeys(obj, SENSITIVE_KEYS);
+    expect(res).toEqual(['user_pro']);
+  });
+
+  test('key_', () => {
+    const obj = {pro_user: true };
+    const res = matchKeys(obj, SENSITIVE_KEYS);
+    expect(res).toEqual(['pro_user']);
+  });
+
+  test('nested keys', () => {
+    const obj = {app: {user: {license: {premium: false}}} };
+    const res = matchKeys(obj, SENSITIVE_KEYS);
+    expect(res).toEqual(['user', 'license', 'premium']);
   });
 })

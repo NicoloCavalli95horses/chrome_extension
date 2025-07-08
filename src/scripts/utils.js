@@ -45,13 +45,11 @@ export function sendPostMessage({ type, data }) {
  * @param {String} data - string to parse
  * @return slice index
  */
-
 export function bypassAntiEmbeddingTokens(data) {
   if (!data.length || typeof data !== 'string') { return; }
   let head = [];
   let tail = [];
   const thr = Math.min(data.length, 80); // No need to parse the whole object: anti-embedding tokens are usually short
-  let head_idx = undefined;
   let tail_idx = undefined;
   let is_head_valid = false;
   let slice_idx_head = undefined;
@@ -60,12 +58,10 @@ export function bypassAntiEmbeddingTokens(data) {
   // Head
   for (let i = 0; i < thr; i++) {
     const head_char = data[i];
-    const is_next_char = i === (head_idx + 1);
 
     // Search the first `{` available
     if (!head.length && head_char === '{') {
       head.push(head_char);
-      head_idx = i;
       slice_idx_head = i;
       continue;
     }
@@ -74,10 +70,8 @@ export function bypassAntiEmbeddingTokens(data) {
     if (head.length == 1) {
       if (head_char === '"') {
         head.push(head_char);
-        head_idx = i;
       } else if (head_char === '{') {
         // if we have another `{`, update indexes
-        head_idx = i;
         slice_idx_head = i;
       }
       continue;
@@ -87,11 +81,9 @@ export function bypassAntiEmbeddingTokens(data) {
     if (head.length == 2) {
       if (!['"', '}', ':'].includes(head_char)) {
         head.push(head_char);
-        head_idx = i;
         continue;
       } else {
         head = [];
-        head_idx = i;
         slice_idx_head = i;
         continue;
       }
@@ -107,7 +99,7 @@ export function bypassAntiEmbeddingTokens(data) {
     }
   }
 
-  // Tail
+  // Tail @TODO
   const min = Math.max(data.length - thr, 0);
 
   for (let i = data.length - 1; i >= min; i--) {
@@ -118,13 +110,7 @@ export function bypassAntiEmbeddingTokens(data) {
       tail.push(tail_char);
       tail_idx = i;
       slice_idx_tail = data.length - tail_idx - 1;
-      continue;
-    }
-
-    // if we have another `}`, update indexes
-    if (tail.length == 1 && tail_char === '}' && i > head_idx) {
-      tail_idx = i;
-      slice_idx_tail = data.length - tail_idx - 1;
+      break;
     }
   }
 
@@ -140,13 +126,82 @@ export function bypassAntiEmbeddingTokens(data) {
  * @param {String} hostname 
  * @returns domain name (string)
  */
-export function getDomainName(hostname) {
+export function getDomainName(hostname = []) {
+  if (!hostname.length) { return []; }
   const domainParts = hostname.split('.');
   const isValid = domainParts.length > 2 && domainParts[0] === 'www';
-  
+
   const partsToReturn = isValid
     ? domainParts.slice(1, domainParts.length - 1)
     : domainParts.slice(0, domainParts.length - 1);
 
   return [...new Set(partsToReturn)];
 }
+
+
+
+/**
+ * Return an array of sensitive keys. The keys are matched entirely, or with [text/digits]_[key]
+ *  - consider distance Levenshtein distance (https://github.com/gustf/js-levenshtein)
+ *  - consider translation
+ * @param {String} host - The domain name
+ * @returns {Array}
+ */
+export function getSensitiveKeys(host) {
+
+  const HAS_KEYS = [
+    'permission',
+    'license',
+    'premium'
+  ];
+
+  const IS_KEYS = [
+    'admin',
+    'brand',
+    'free',
+    'locked',
+    'license',
+    'only', // '[subscriber]_only', '[brand]_only'
+    'permission',
+    'plus',
+    'premium',
+    'price',
+    'pro',
+    'role',
+    'unlocked',
+    'subscribed', // can lead to FP if used for authentication
+    'user',
+  ];
+
+  const KEYS = [ ...HAS_KEYS, ...IS_KEYS, ...getDomainName(host) ];
+  const ret = [];
+
+  KEYS.forEach(key => {
+    const uppercaseKey = capitalizeFirstLetter( key.toString() );
+    ret.push(key, `_${key}`, `${key}_`);
+    if (IS_KEYS.includes(key)) {
+      ret.push(`is${uppercaseKey}`, `is_${key}`);
+    } else if (HAS_KEYS.includes(key)) {
+      ret.push(`has${uppercaseKey}`, `has_${key}`)
+    }
+  });
+
+  return ret;
+}
+
+
+
+export const SENSITIVE_KEYS = getSensitiveKeys(window.location?.host);
+
+
+
+export function deepObjCopy(obj) {
+  return JSON.parse(JSON.stringify(obj));
+}
+
+
+
+export function capitalizeFirstLetter(str) {
+  if (!str.length) { return;}
+  return str.charAt(0).toUpperCase() + str.slice(1);
+};

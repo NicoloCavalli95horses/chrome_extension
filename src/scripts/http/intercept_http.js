@@ -2,9 +2,27 @@
 // Import
 //==============================
 import {
+  deepObjCopy,
   sendPostMessage,
+  SENSITIVE_KEYS,
   bypassAntiEmbeddingTokens,
 } from '../utils.js';
+
+
+
+//==============================
+// Const
+//==============================
+
+
+// Interface for HTTP message description
+const _priv = Object.freeze({
+  is_json: false,
+  is_sensitive: false,
+  keywords_matched: [],
+  anti_embedding_token: false,
+  sensitive_keys: SENSITIVE_KEYS,
+});
 
 
 
@@ -39,11 +57,13 @@ export function captureXMLHttpRequest( {bodyAnalysisFn} ) {
 
   // Centralized function to build request object
   const buildRequest = function (data) {
+    const uri = decodeURIComponent(this._url);
     return {
-      uri: decodeURIComponent(this._url),
+      uri,
       verb: this._method,
       headers: this._requestHeaders,
       body: getRequestBody(data),
+      _priv: analyzeReqURI(uri)
     };
   };
 
@@ -80,7 +100,7 @@ export function captureXMLHttpRequest( {bodyAnalysisFn} ) {
 function getXHResponseBody( {data, func} ) {
   const ret = {
     body: data || {},
-    _priv: {is_json: false, is_sensitive: false, keywords_matched: []}
+    _priv: deepObjCopy(_priv),
   };
 
   if (!data) { return ret; } 
@@ -91,15 +111,19 @@ function getXHResponseBody( {data, func} ) {
     try {
       // Best case scenario, the data can be directly parsed
       const body = JSON.parse(data);
-      return {body, _priv: {...func(body), is_json: true}};
+      ret.body = body;
+      ret._priv = { ...ret._priv, ...func(body), is_json: true}
+      return ret;
     } catch {
       // Data still in JSON format but an anti-embedding token is used
       const idx = bypassAntiEmbeddingTokens(data);
-      if ( idx.some(i => !Number.isInteger(i)) ) { return ret; } 
+      if ( idx.every(i => !Number.isInteger(i)) ) { return ret; } 
       try {
         const sliced = slideBodyText(idx, data);
         const body = JSON.parse(sliced);
-        return {body, _priv: {...func(body), is_json: true, anti_embedding_token: true}};
+        ret.body = body;
+        ret._priv = { ...ret._priv, ...func(body), is_json: true, anti_embedding_token: true};
+        return ret;
       } catch {
         return ret;
         }
@@ -148,6 +172,8 @@ export async function captureFetchRequest( {bodyAnalysisFn} ) {
         body: getRequestBody( args[1]?.body ),
       };
 
+      request._priv = analyzeReqURI(request.uri);
+
       const response = {
         status: _res?.status,
         ...await getFetchResponseHeaders(_res?.headers),
@@ -184,19 +210,15 @@ async function getFetchResponseHeaders(data) {
  */
 async function getFetchResponseBody( {data, func} ) {
   const ret = {
-    body: {},
-    _priv: {
-      is_json: false,
-      is_sensitive: false,
-      keywords_matched: []
-    },
+    body: data || {},
+    _priv: deepObjCopy(_priv),
   };
 
   try {
     const jsonResponse = await data.json().catch(() => null);
     if (jsonResponse) {
       ret.body = jsonResponse;
-      ret._priv = { is_json: true, ...func(jsonResponse) };
+      ret._priv = { ...ret._priv, is_json: true, ...func(jsonResponse) };
     } else {
       const textResponse = await data.text();
       ret.body = textResponse;
@@ -208,11 +230,12 @@ async function getFetchResponseBody( {data, func} ) {
     if (!Number.isInteger(idx)) { return ret; } 
     try {
       const sliced = slideBodyText(idx, textResponse);
-      const body = JSON.parse(sliced);
-      return {body, _priv: {...func(body), is_json: true, anti_embedding_token: true}};
+      ret.body = JSON.parse(sliced);
+      ret._priv = {...ret._priv, ...func(body), is_json: true, anti_embedding_token: true};
+      return ret;
     } catch {
       return ret;
-      }
+    }
   }
   return ret;
 }
@@ -235,3 +258,24 @@ async function modifyHTTPResponse( {response, oldString, newString} ) {
   const replacedTxt = txt.replace(oldString, newString);
   return new Response(replacedTxt);
 }
+
+
+
+function analyzeReqURI(uri) {
+  if ( !uri || typeof uri !== 'string') { return false; }
+
+  const keywords_matched = [];
+  const split = [...new Set(uri.split(/[.?:\/-]/))];
+
+  SENSITIVE_KEYS.forEach(k => {
+    if (split.includes(k) && !keywords_matched.includes(k)) {
+      keywords_matched.push(k);
+    }
+  });
+
+  return {
+    ...deepObjCopy(_priv),
+    is_sensitive: !!keywords_matched.length,
+    keywords_matched,
+  };
+} 
