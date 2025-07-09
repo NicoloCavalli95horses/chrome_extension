@@ -72,10 +72,10 @@ async function build() {
       entryPoints: [entry.in],
       bundle: true,
       outfile: entry.out,
-      minify: false, // name collisions in target websites (!)
+      minify: true,
       sourcemap: false,
       target: ['chrome112'],
-      format: 'esm',
+      format: 'iife',
       splitting: false,
     });
   }

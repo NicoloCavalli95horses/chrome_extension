@@ -9,7 +9,7 @@ chrome.webNavigation.onCompleted.addListener( async (details) => {
     }
 
     await chrome.scripting.executeScript({
-      target: { tabId: details.tabId },
+      target: { tabId: details.tabId, allFrames: true },
       files: ['http_main.js'],
       world: 'MAIN'
     });
@@ -17,3 +17,12 @@ chrome.webNavigation.onCompleted.addListener( async (details) => {
     return err;
   }
 }, { url: [{ schemes: ['http', 'https'] }] });
+
+
+// chrome.webRequest.onBeforeRequest.addListener(
+//   (details) => {
+//     // ...
+    
+//   },
+//   { urls: ['<all_urls>'] }
+// );

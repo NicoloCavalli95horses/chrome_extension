@@ -24,9 +24,10 @@ export function DOMManipulationCheck() {
     padding: 10px 12px;
     color: black;
   `;
-  el.innerHTML = 'HTTP analyzer is on 🚀'
+  el.innerHTML = 'HTTP analyzer is on 🚀';
   document.body.appendChild(el);
 }
+
 
 
 /**
@@ -34,8 +35,10 @@ export function DOMManipulationCheck() {
  * @param {String} type - sender ID
  * @param {Object} data
  */
-export function sendPostMessage({ type, data }) {
-  window.postMessage({ type, data }, '*');
+export function sendPostMessage( {type, data} ) {
+  // This funciton is limited in the amout of data it can transfer
+  const clonedData = JSON.parse(JSON.stringify(data));
+  window.postMessage({type, data: clonedData}, '*');
 };
 
 
@@ -46,7 +49,7 @@ export function sendPostMessage({ type, data }) {
  * @return slice index
  */
 export function bypassAntiEmbeddingTokens(data) {
-  if (!data.length || typeof data !== 'string') { return; }
+  if (!data.length || typeof data !== 'string') { return []; }
   let head = [];
   let tail = [];
   const thr = Math.min(data.length, 80); // No need to parse the whole object: anti-embedding tokens are usually short
@@ -150,26 +153,37 @@ export function getDomainName(hostname = []) {
 export function getSensitiveKeys(host) {
 
   const HAS_KEYS = [
-    'permission',
+    'access',
     'license',
-    'premium'
-  ];
-
-  const IS_KEYS = [
-    'admin',
-    'brand',
-    'free',
-    'locked',
-    'license',
-    'only', // '[subscriber]_only', '[brand]_only'
     'permission',
+    'paywall',
     'plus',
     'premium',
     'price',
     'pro',
+    'reward',
+    'rewards',
     'role',
+    'roles',
+  ];
+
+  const IS_KEYS = [
+    'active',
+    'admin',
+    'brand',
+    'brand_only',
+    'free',
+    'locked',
+    'me',
+    'my',
+    'only',
+    'plus',
+    'premium',
+    'pro',
     'unlocked',
-    'subscribed', // can lead to FP if used for authentication
+    'secret',
+    'subscribed',
+    'subscribed_only',
     'user',
   ];
 
@@ -179,9 +193,11 @@ export function getSensitiveKeys(host) {
   KEYS.forEach(key => {
     const uppercaseKey = capitalizeFirstLetter( key.toString() );
     ret.push(key, `_${key}`, `${key}_`);
-    if (IS_KEYS.includes(key)) {
+    if (IS_KEYS.includes(key) && !ret.includes(key)) {
       ret.push(`is${uppercaseKey}`, `is_${key}`);
-    } else if (HAS_KEYS.includes(key)) {
+    }
+
+    if (HAS_KEYS.includes(key) && !ret.includes(key)) {
       ret.push(`has${uppercaseKey}`, `has_${key}`)
     }
   });

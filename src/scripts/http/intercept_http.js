@@ -58,6 +58,11 @@ export function captureXMLHttpRequest( {bodyAnalysisFn} ) {
   // Centralized function to build request object
   const buildRequest = function (data) {
     const uri = decodeURIComponent(this._url);
+
+    if (uri?.includes('course_pack_fr_pronunciation?translations=fr')) {
+      console.log(true,  uri )
+    }
+
     return {
       uri,
       verb: this._method,
@@ -68,14 +73,14 @@ export function captureXMLHttpRequest( {bodyAnalysisFn} ) {
   };
 
   // Override send to handle response and errors
-  XHR.send = function (data) {
-    const handleResponse = (_) => {
+  XHR.send = async function (data) {
+    const handleResponse = async (_) => {
       const request = buildRequest.call(this, data); // Use the centralized request builder
-
+      const responseText = await getXHResponseText(this);
       const response = {
         status: this.status,
         headers: this.getAllResponseHeaders(),
-        ...getXHResponseBody( {data: this.responseText, func: bodyAnalysisFn} ),
+        ...getXHResponseBody( {data: responseText, func: bodyAnalysisFn} ),
       };
 
       // Send post message to `content_script.js`
@@ -91,6 +96,25 @@ export function captureXMLHttpRequest( {bodyAnalysisFn} ) {
 }
 
 
+async function getXHResponseText( data ) {
+  if (['json', 'document', 'formdata'].includes(data.responseType)) {
+    return data.response;
+  } 
+  
+  if (['text', ''].includes(data.responseType)) {
+    return data.responseText;
+  } 
+  
+  if (data.responseType === 'blob') {
+    return await new Response(data.response).text() // blob object
+  } 
+  
+  if (data.responseType === 'arraybuffer') {
+    const decoder = new TextDecoder('utf-8');
+    return decoder.decode(data.response);
+  }
+}
+
 
 /**
  * @param {ReadableStream} data - The XMLHttpRequest response body
@@ -105,6 +129,7 @@ function getXHResponseBody( {data, func} ) {
 
   if (!data) { return ret; } 
   const type = typeof data;
+
   if (["object", "number", "boolean"].includes(type) || Array.isArray(data)) { return ret; } 
    
   if (type === "string") {
@@ -117,7 +142,7 @@ function getXHResponseBody( {data, func} ) {
     } catch {
       // Data still in JSON format but an anti-embedding token is used
       const idx = bypassAntiEmbeddingTokens(data);
-      if ( idx.every(i => !Number.isInteger(i)) ) { return ret; } 
+      if ( !idx.length || idx.every(i => !Number.isInteger(i)) ) { return ret; } 
       try {
         const sliced = slideBodyText(idx, data);
         const body = JSON.parse(sliced);
@@ -210,33 +235,37 @@ async function getFetchResponseHeaders(data) {
  */
 async function getFetchResponseBody( {data, func} ) {
   const ret = {
-    body: data || {},
+    body: await data.text(), // original data can be read only once
     _priv: deepObjCopy(_priv),
   };
 
+  // #1 Regular JSON
+  let jsonResponse = null;
   try {
-    const jsonResponse = await data.json().catch(() => null);
+    jsonResponse = JSON.parse(ret.body);
     if (jsonResponse) {
       ret.body = jsonResponse;
       ret._priv = { ...ret._priv, is_json: true, ...func(jsonResponse) };
-    } else {
-      const textResponse = await data.text();
-      ret.body = textResponse;
-    };
-  } catch {
-    // Data still in JSON format but an anti-embedding token is used
-    const textResponse = await data.text();
-    const idx = bypassAntiEmbeddingTokens(textResponse);
-    if (!Number.isInteger(idx)) { return ret; } 
-    try {
-      const sliced = slideBodyText(idx, textResponse);
-      ret.body = JSON.parse(sliced);
-      ret._priv = {...ret._priv, ...func(body), is_json: true, anti_embedding_token: true};
-      return ret;
-    } catch {
       return ret;
     }
+  } catch (err) {
+    // console.error('Error during parsing JSON, trying sanitizing text...', err, ret.body);
   }
+  
+  // #2 JSON with anti-embedding token
+  const idx = bypassAntiEmbeddingTokens(ret.body);
+  if ( !idx.length || idx.every(i => !Number.isInteger(i)) ) { return ret; }
+
+  try {
+    const sliced = slideBodyText(idx, ret.body);
+    ret.body = JSON.parse(sliced);
+    ret._priv = {...ret._priv, ...func(body), is_json: true, anti_embedding_token: true};
+    return ret;
+  } catch {
+    console.error('Error during parsing text with anti-embedding token: ', err, ret.body);
+  }
+
+  // #3 catch-all
   return ret;
 }
 
@@ -262,11 +291,14 @@ async function modifyHTTPResponse( {response, oldString, newString} ) {
 
 
 function analyzeReqURI(uri) {
-  if ( !uri || typeof uri !== 'string') { return false; }
+  const ret = { ...deepObjCopy(_priv) };
+
+  if ( !uri || typeof uri !== 'string') { return ret; }
 
   const keywords_matched = [];
   const split = [...new Set(uri.split(/[.?:\/-]/))];
 
+  // @TODO: esclude host name from sensitive keys in this case (too many FP)
   SENSITIVE_KEYS.forEach(k => {
     if (split.includes(k) && !keywords_matched.includes(k)) {
       keywords_matched.push(k);
@@ -274,7 +306,7 @@ function analyzeReqURI(uri) {
   });
 
   return {
-    ...deepObjCopy(_priv),
+    ...ret,
     is_sensitive: !!keywords_matched.length,
     keywords_matched,
   };
